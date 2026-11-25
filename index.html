@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Little Tracing School</title>
+<style>
+:root{--ink:#193b5b;--teal:#087f8c;--sky:#e9f8ff;--yellow:#ffd75e;--pink:#ff8e9e;--green:#8edb78}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Trebuchet MS",Arial,sans-serif;background:linear-gradient(180deg,#b9efff,#f7fcff 48%,#fff4c9);color:var(--ink);min-height:100vh}
+header{padding:16px 18px 8px;text-align:center}
+h1{margin:0;font-size:clamp(24px,4vw,36px);color:#145b82;text-shadow:0 2px #fff}
+.subtitle{margin:5px 0 0;color:#42677c;font-size:15px}
+.app{max-width:900px;margin:0 auto;padding:10px 16px 24px}
+.toolbar{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:12px 0}
+.tab,.smallbtn,.next{border:0;border-radius:14px;padding:10px 16px;font-weight:800;font-size:15px;cursor:pointer;box-shadow:0 3px 0 #0002;touch-action:manipulation}
+.tab{background:#fff;color:#35627b}.tab.active{background:#087f8c;color:#fff}
+.card{background:#ffffffed;border:3px solid #fff;border-radius:24px;padding:14px;box-shadow:0 8px 22px #3b91ad25}
+.topline{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 4px 10px}
+.progress{font-weight:800;color:#4d7386}
+.instruction{font-size:15px;color:#507184;font-weight:700}
+.stage{position:relative;background:linear-gradient(#f4fcff,#fff);border:2px dashed #b4e2ed;border-radius:20px;overflow:hidden;touch-action:none}
+canvas{display:block;width:100%;height:min(58vh,440px);min-height:280px;touch-action:none;cursor:crosshair}
+.controls{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:14px}
+.smallbtn{background:#e8f5ff;color:#245a78}
+.next{background:#ffca45;color:#664400;padding:12px 24px;font-size:17px}
+.next:active,.smallbtn:active,.tab:active{transform:translateY(2px);box-shadow:0 1px 0 #0002}
+.message{min-height:28px;text-align:center;font-weight:800;color:#16815c;margin-top:8px}
+.hint{font-size:13px;text-align:center;color:#78909c;margin-top:6px}
+.footer{text-align:center;font-size:12px;color:#75909d;margin:14px 0 0}
+@media(max-width:700px){
+header{padding:10px 10px 4px}.subtitle{font-size:13px}
+.app{padding:4px 8px 16px}.card{padding:8px;border-radius:18px}
+.toolbar{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;-webkit-overflow-scrolling:touch;padding-bottom:6px;margin:8px -8px;padding-left:8px;padding-right:8px}
+.tab{padding:8px 12px;font-size:13px;white-space:nowrap;flex:0 0 auto}
+.topline{flex-direction:column;align-items:flex-start;gap:2px}.progress{font-size:14px}.instruction{font-size:12px}
+canvas{height:52vh;min-height:300px}
+.controls{gap:6px}.smallbtn{padding:9px 12px;font-size:14px}.next{padding:10px 18px;font-size:15px}
+.message{font-size:14px}.hint{display:none}
+}
+</style>
+</head>
+<body>
+<header><h1>🌈 Little Tracing School</h1><p class="subtitle">Let’s learn letters, numbers, lines and shapes!</p></header>
+<main class="app">
+  <div class="toolbar" id="tabs">
+    <button class="tab active" data-kind="letters">ABC Capital</button>
+    <button class="tab" data-kind="small">abc Small</button>
+    <button class="tab" data-kind="cursive">𝒶𝒷𝒸 Small Cursive</button>
+    <button class="tab" data-kind="cursiveCap">𝒜ℬ𝒞 Big Cursive</button>
+    <button class="tab" data-kind="words">🔤 3-Letter Words</button>
+    <button class="tab" data-kind="cursiveWords">𝒶𝒷𝒸 Cursive Words</button>
+    <button class="tab" data-kind="numbers">0-20 Numbers</button>
+    <button class="tab" data-kind="lines">✏️ Pre-writing</button>
+    <button class="tab" data-kind="hindi">अ आ Hindi</button>
+    <button class="tab" data-kind="shapes">⭐ Shapes</button>
+    <button class="tab" data-kind="advanced">📝 Advanced Writing</button>
+  </div>
+  <section class="card">
+    <div class="topline"><div class="progress" id="progress">Letter 1 of 26</div><div class="instruction" id="instruction">Trace the dotted path with your finger</div></div>
+    <div class="stage"><canvas id="board" aria-label="Tracing board"></canvas></div>
+    <div class="message" id="message">Start at the BIG GREEN dot 🟢 and trace towards the RED dot 🔴</div>
+    <div class="controls">
+      <button class="smallbtn" id="back">← Back</button>
+      <button class="smallbtn" id="reset">↻ Try again</button>
+      <button class="next" id="next">Next ➜</button>
+    </div>
+    <div class="hint">Tip: Use your finger on a phone or mouse on a computer.</div>
+  </section>
+  <p class="footer">Made for little learners • Practice slowly and have fun!</p>
+</main>
+<script>
+const canvas=document.getElementById('board'),ctx=canvas.getContext('2d');
+const progress=document.getElementById('progress'),instruction=document.getElementById('instruction'),message=document.getElementById('message');
+// arc helper: angles in degrees (0=right, 90=down); increasing = clockwise on screen
+function arc(cx,cy,rx,ry,a0,a1,n=18){const pts=[];for(let i=0;i<=n;i++){const a=(a0+(a1-a0)*i/n)*Math.PI/180;pts.push([+(cx+rx*Math.cos(a)).toFixed(3),+(cy+ry*Math.sin(a)).toFixed(3)])}return pts}
+const slant=paths=>paths.map(p=>p.map(([x,y])=>[+(x+(0.6-y)*0.2).toFixed(3),y]));
+const smallLetters={
+ a:[arc(.47,.60,.17,.20,-45,-405),[[.64,.40],[.64,.80]]],
+ b:[[[.30,.15],[.30,.80]],arc(.47,.60,.17,.20,190,550)],
+ c:[arc(.52,.60,.18,.20,-45,-315)],
+ d:[arc(.47,.60,.17,.20,-45,-405),[[.64,.15],[.64,.80]]],
+ e:[[[.28,.60],[.72,.60],...arc(.50,.60,.22,.20,0,-315).slice(1)]],
+ f:[[[.64,.22],[.58,.16],[.50,.15],[.44,.22],[.44,.80]],[[.30,.42],[.64,.42]]],
+ g:[arc(.47,.60,.17,.20,-45,-405),[[.64,.40],[.64,.85],[.57,.94],[.44,.97],[.33,.92]]],
+ h:[[[.30,.15],[.30,.80]],[[.30,.52],[.40,.43],[.52,.41],[.62,.48],[.64,.58],[.64,.80]]],
+ i:[[[.50,.40],[.50,.80]],[[.50,.24],[.50,.27]]],
+ j:[[[.52,.40],[.52,.88],[.45,.96],[.33,.97],[.28,.92]],[[.52,.24],[.52,.27]]],
+ k:[[[.30,.15],[.30,.80]],[[.65,.40],[.32,.62]],[[.45,.56],[.67,.80]]],
+ l:[[[.50,.15],[.50,.80]]],
+ m:[[[.20,.40],[.20,.80]],[[.20,.52],[.28,.43],[.38,.41],[.45,.50],[.45,.80]],[[.45,.52],[.54,.43],[.64,.41],[.72,.50],[.72,.80]]],
+ n:[[[.30,.40],[.30,.80]],[[.30,.52],[.40,.43],[.52,.41],[.62,.48],[.64,.58],[.64,.80]]],
+ o:[arc(.50,.60,.20,.20,-90,-450,24)],
+ p:[[[.32,.40],[.32,.97]],arc(.50,.60,.18,.20,190,550)],
+ q:[arc(.47,.60,.17,.20,-45,-405),[[.64,.40],[.64,.97]]],
+ r:[[[.35,.40],[.35,.80]],[[.35,.55],[.42,.46],[.52,.41],[.62,.42]]],
+ s:[[[.65,.47],[.55,.41],[.43,.41],[.34,.47],[.36,.55],[.50,.60],[.63,.66],[.65,.74],[.56,.80],[.43,.80],[.33,.74]]],
+ t:[[[.46,.20],[.46,.74],[.52,.80],[.62,.80]],[[.32,.42],[.64,.42]]],
+ u:[[[.30,.40],[.30,.68],[.40,.79],[.52,.80],[.64,.72]],[[.66,.40],[.66,.80]]],
+ v:[[[.27,.40],[.50,.80],[.73,.40]]],
+ w:[[[.15,.40],[.30,.80],[.50,.50],[.70,.80],[.85,.40]]],
+ x:[[[.30,.40],[.70,.80]],[[.70,.40],[.30,.80]]],
+ y:[[[.28,.40],[.50,.78]],[[.72,.40],[.50,.80],[.40,.92],[.30,.97]]],
+ z:[[[.30,.40],[.70,.40],[.30,.80],[.70,.80]]]
+};
+const cursiveLetters={
+ a:[[...arc(.47,.60,.16,.20,-40,-400),[.63,.42],[.63,.78],[.72,.80]]],
+ b:[[[.20,.78],[.32,.55],[.40,.28],[.40,.16],[.33,.14],[.30,.30],[.32,.60],[.33,.78],[.46,.82],[.60,.74],[.64,.62],[.58,.52],[.72,.46]]],
+ c:[[...arc(.50,.60,.17,.20,-40,-320),[.70,.78]]],
+ d:[[...arc(.47,.60,.16,.20,-40,-400),[.64,.40],[.66,.16],[.66,.78],[.74,.80]]],
+ e:[[[.30,.70],[.45,.55],[.60,.42],[.50,.38],[.38,.45],[.32,.60],[.38,.76],[.52,.80],[.66,.74]]],
+ f:[[[.62,.22],[.55,.14],[.46,.14],[.42,.28],[.40,.55],[.38,.80],[.36,.92],[.28,.97],[.22,.92],[.30,.84],[.44,.74],[.60,.70]],[[.28,.42],[.56,.40]]],
+ g:[[...arc(.47,.60,.16,.20,-40,-400),[.63,.42],[.63,.90],[.55,.97],[.42,.95],[.36,.88],[.45,.84],[.56,.80],[.70,.72]]],
+ h:[[[.22,.80],[.32,.40],[.38,.17],[.31,.15],[.29,.40],[.30,.80],[.32,.58],[.44,.42],[.58,.44],[.60,.60],[.62,.78],[.72,.80]]],
+ i:[[[.28,.78],[.36,.42],[.38,.76],[.48,.80],[.58,.68]],[[.38,.26],[.38,.28]]],
+ j:[[[.40,.42],[.40,.88],[.32,.97],[.22,.94],[.28,.88],[.40,.82],[.56,.66]],[[.40,.26],[.40,.28]]],
+ k:[[[.22,.80],[.32,.40],[.38,.16],[.30,.15],[.29,.40],[.30,.80]],[[.60,.42],[.50,.55],[.36,.62],[.48,.66],[.56,.78],[.68,.80]]],
+ l:[[[.22,.80],[.34,.40],[.40,.16],[.32,.15],[.30,.40],[.32,.78],[.42,.80],[.60,.70]]],
+ m:[[[.18,.78],[.24,.42],[.25,.78],[.30,.55],[.40,.42],[.48,.55],[.48,.78],[.52,.55],[.62,.42],[.72,.55],[.72,.76],[.82,.80]]],
+ n:[[[.22,.78],[.28,.42],[.29,.78],[.34,.55],[.46,.42],[.58,.50],[.60,.76],[.72,.80]]],
+ o:[[...arc(.46,.60,.17,.20,-90,-450,24),[.55,.42],[.70,.42]]],
+ p:[[[.28,.40],[.30,.70],[.30,.97]],[[.30,.55],[.40,.42],[.55,.42],[.65,.55],[.62,.72],[.48,.80],[.34,.74]]],
+ q:[[...arc(.47,.60,.16,.20,-40,-400),[.63,.40],[.63,.94],[.72,.98]]],
+ r:[[[.24,.78],[.32,.42],[.34,.70],[.44,.50],[.56,.42],[.66,.44],[.60,.50]]],
+ s:[[[.28,.76],[.40,.55],[.50,.42],[.44,.40],[.40,.46],[.55,.58],[.62,.70],[.55,.80],[.42,.80],[.40,.74],[.52,.74],[.68,.68]]],
+ t:[[[.46,.18],[.42,.60],[.44,.76],[.54,.80],[.66,.70]],[[.30,.42],[.60,.42]]],
+ u:[[[.24,.42],[.26,.70],[.36,.80],[.50,.70],[.54,.42],[.54,.76],[.64,.80],[.74,.68]]],
+ v:[[[.24,.42],[.40,.78],[.52,.58],[.64,.42],[.72,.36],[.70,.46]]],
+ w:[[[.18,.42],[.28,.78],[.40,.56],[.50,.78],[.66,.42],[.76,.36],[.74,.46]]],
+ x:[[[.30,.42],[.62,.80]],[[.64,.42],[.30,.80]]],
+ y:[[[.26,.42],[.34,.74],[.46,.80],[.58,.60],[.64,.42],[.62,.80],[.54,.94],[.42,.97],[.36,.90],[.46,.86]]],
+ z:[[[.30,.42],[.64,.42],[.32,.78],[.62,.78],[.70,.70]]]
+};
+const cursiveCaps={
+ A:[[[.22,.82],[.34,.60],[.46,.28],[.52,.15],[.60,.38],[.70,.65],[.82,.82]],[[.30,.62],[.50,.60],[.70,.58]]],
+ B:[[[.30,.15],[.30,.82]],[[.30,.20],[.50,.14],[.70,.22],[.62,.42],[.35,.50],[.62,.52],[.78,.66],[.65,.82],[.40,.82],[.28,.76]]],
+ C:[arc(.52,.50,.28,.33,-40,-320)],
+ D:[[[.25,.18],[.28,.82]],[[.28,.20],[.55,.10],[.78,.35],[.72,.65],[.50,.84],[.28,.82]]],
+ E:[[[.70,.22],[.50,.12],[.30,.20],[.45,.40],[.62,.46],[.38,.50],[.26,.64],[.40,.82],[.62,.82],[.76,.70]]],
+ F:[[[.75,.18],[.55,.12],[.40,.20],[.38,.50],[.35,.82]],[[.22,.42],[.45,.40],[.68,.38]]],
+ G:[[[.72,.22],[.55,.12],[.35,.20],[.25,.45],[.35,.75],[.55,.82],[.72,.70],[.70,.55],[.55,.52],[.80,.50]]],
+ H:[[[.25,.15],[.22,.50],[.25,.82]],[[.78,.15],[.76,.50],[.80,.82]],[[.25,.52],[.50,.45],[.76,.50]]],
+ I:[[[.30,.18],[.70,.18]],[[.50,.18],[.50,.82]],[[.30,.82],[.70,.82]]],
+ J:[[[.35,.16],[.75,.16],[.60,.16],[.55,.60],[.45,.80],[.30,.84],[.22,.70]]],
+ K:[[[.32,.14],[.30,.82]],[[.75,.20],[.35,.55],[.50,.62],[.72,.82]]],
+ L:[[[.50,.12],[.40,.30],[.35,.70],[.38,.82],[.55,.80],[.78,.82]]],
+ M:[[[.12,.82],[.20,.18],[.38,.60],[.52,.20],[.62,.60],[.80,.20],[.84,.82]]],
+ N:[[[.18,.82],[.24,.18],[.52,.76],[.76,.16],[.82,.30]]],
+ O:[arc(.50,.50,.28,.33,-90,-450,28)],
+ P:[[[.30,.15],[.30,.82]],[[.30,.18],[.55,.12],[.74,.25],[.68,.45],[.30,.52]]],
+ Q:[arc(.50,.50,.28,.33,-90,-450,28),[[.55,.72],[.70,.84],[.84,.78]]],
+ R:[[[.28,.15],[.30,.82]],[[.28,.18],[.55,.12],[.72,.25],[.62,.45],[.30,.52]],[[.50,.52],[.65,.70],[.80,.82]]],
+ S:[[[.68,.22],[.50,.12],[.32,.22],[.40,.40],[.62,.55],[.68,.72],[.50,.84],[.30,.76]]],
+ T:[[[.20,.18],[.80,.16]],[[.50,.16],[.48,.82]]],
+ U:[[[.22,.15],[.26,.60],[.45,.84],[.64,.62],[.70,.15],[.72,.82],[.80,.80]]],
+ V:[[[.20,.18],[.46,.84],[.80,.16],[.86,.30]]],
+ W:[[[.12,.16],[.26,.82],[.44,.30],[.60,.82],[.82,.16]]],
+ X:[[[.25,.16],[.75,.84]],[[.75,.16],[.25,.84]]],
+ Y:[[[.22,.16],[.48,.62],[.80,.16]],[[.48,.62],[.42,.85],[.28,.95]]],
+ Z:[[[.25,.18],[.75,.18],[.28,.82],[.78,.82]]]
+};
+const sets={
+ letters:Object.entries({
+  'A':[[ [0.18,0.82], [0.50,0.18], [0.82,0.82] ], [ [0.31,0.58], [0.69,0.58] ]],
+  'B':[[ [0.28,0.18], [0.28,0.82] ], [ [0.28,0.18], [0.59,0.18], [0.76,0.28], [0.76,0.42], [0.62,0.50], [0.28,0.50] ], [ [0.28,0.50], [0.63,0.50], [0.79,0.61], [0.79,0.74], [0.63,0.82], [0.28,0.82] ]],
+  'C':[[ [0.76,0.27], [0.62,0.18], [0.42,0.18], [0.25,0.30], [0.20,0.50], [0.25,0.70], [0.42,0.82], [0.64,0.82], [0.77,0.72] ]],
+  'D':[[ [0.28,0.18], [0.28,0.82] ], [ [0.28,0.18], [0.55,0.18], [0.74,0.31], [0.80,0.50], [0.74,0.69], [0.55,0.82], [0.28,0.82] ]],
+  'E':[[ [0.72,0.18], [0.28,0.18], [0.28,0.82], [0.73,0.82] ], [ [0.28,0.50], [0.65,0.50] ]],
+  'F':[[ [0.28,0.82], [0.28,0.18], [0.73,0.18] ], [ [0.28,0.50], [0.65,0.50] ]],
+  'G':[[ [0.76,0.29], [0.62,0.18], [0.42,0.18], [0.25,0.30], [0.20,0.50], [0.25,0.70], [0.42,0.82], [0.66,0.82], [0.78,0.70], [0.78,0.55], [0.56,0.55] ]],
+  'H':[[ [0.27,0.18], [0.27,0.82] ], [ [0.73,0.18], [0.73,0.82] ], [ [0.27,0.50], [0.73,0.50] ]],
+  'I':[[ [0.35,0.18], [0.65,0.18] ], [ [0.50,0.18], [0.50,0.82] ], [ [0.35,0.82], [0.65,0.82] ]],
+  'J':[[ [0.38,0.18], [0.73,0.18], [0.73,0.65], [0.64,0.79], [0.47,0.83], [0.31,0.76], [0.25,0.65] ]],
+  'K':[[ [0.28,0.18], [0.28,0.82] ], [ [0.73,0.18], [0.30,0.52], [0.76,0.82] ]],
+  'L':[[ [0.29,0.18], [0.29,0.82], [0.73,0.82] ]],
+  'M':[[ [0.18,0.82], [0.18,0.18], [0.50,0.55], [0.82,0.18], [0.82,0.82] ]],
+  'N':[[ [0.25,0.82], [0.25,0.18], [0.75,0.82], [0.75,0.18] ]],
+  'O':[[ [0.50,0.18], [0.30,0.22], [0.20,0.40], [0.20,0.60], [0.30,0.78], [0.50,0.82], [0.70,0.78], [0.80,0.60], [0.80,0.40], [0.70,0.22], [0.50,0.18] ]],
+  'P':[[ [0.28,0.82], [0.28,0.18], [0.59,0.18], [0.76,0.29], [0.76,0.42], [0.60,0.52], [0.28,0.52] ]],
+  'Q':[[ [0.50,0.18], [0.30,0.22], [0.20,0.40], [0.20,0.60], [0.30,0.78], [0.50,0.82], [0.70,0.78], [0.80,0.60], [0.80,0.40], [0.70,0.22], [0.50,0.18] ], [ [0.57,0.65], [0.82,0.86] ]],
+  'R':[[ [0.28,0.82], [0.28,0.18], [0.58,0.18], [0.76,0.29], [0.76,0.42], [0.60,0.52], [0.28,0.52] ], [ [0.53,0.52], [0.78,0.82] ]],
+  'S':[[ [0.75,0.28], [0.62,0.18], [0.40,0.18], [0.25,0.29], [0.27,0.43], [0.42,0.49], [0.62,0.53], [0.75,0.63], [0.73,0.74], [0.58,0.82], [0.36,0.82], [0.23,0.72] ]],
+  'T':[[ [0.20,0.18], [0.80,0.18] ], [ [0.50,0.18], [0.50,0.82] ]],
+  'U':[[ [0.25,0.18], [0.25,0.62], [0.34,0.77], [0.50,0.82], [0.66,0.77], [0.75,0.62], [0.75,0.18] ]],
+  'V':[[ [0.20,0.18], [0.50,0.82], [0.80,0.18] ]],
+  'W':[[ [0.15,0.18], [0.30,0.82], [0.50,0.52], [0.70,0.82], [0.85,0.18] ]],
+  'X':[[ [0.23,0.18], [0.77,0.82] ], [ [0.77,0.18], [0.23,0.82] ]],
+  'Y':[[ [0.20,0.18], [0.50,0.50], [0.80,0.18] ], [ [0.50,0.50], [0.50,0.82] ]],
+  'Z':[[ [0.23,0.18], [0.77,0.18], [0.23,0.82], [0.77,0.82] ]]
+ }).map(([v,paths])=>({label:v,name:'Letter '+v,type:'path',paths})),
+ small:Object.entries(smallLetters).map(([v,paths])=>({label:v,name:'Small letter '+v,type:'path',paths,guide:true})),
+ cursive:Object.entries(cursiveLetters).map(([v,paths])=>({label:v,name:'Cursive letter '+v,type:'path',paths:slant(paths),guide:true})),
+ cursiveCap:Object.entries(cursiveCaps).map(([v,paths])=>({label:v,name:'Cursive capital '+v,type:'path',paths:slant(paths),guide:true})),
+ numbers:Object.entries({
+  '0':[[ [0.50,0.18], [0.30,0.22], [0.22,0.40], [0.22,0.60], [0.30,0.78], [0.50,0.82], [0.70,0.78], [0.78,0.60], [0.78,0.40], [0.70,0.22], [0.50,0.18] ]],
+  '1':[[ [0.35,0.32], [0.50,0.18], [0.50,0.82] ], [ [0.32,0.82], [0.68,0.82] ]],
+  '2':[[ [0.25,0.32], [0.34,0.20], [0.55,0.17], [0.72,0.27], [0.76,0.40], [0.68,0.52], [0.25,0.82], [0.77,0.82] ]],
+  '3':[[ [0.27,0.25], [0.43,0.18], [0.63,0.20], [0.75,0.32], [0.68,0.45], [0.50,0.50] ], [ [0.50,0.50], [0.68,0.54], [0.76,0.68], [0.66,0.80], [0.43,0.83], [0.26,0.75] ]],
+  '4':[[ [0.63,0.82], [0.63,0.18], [0.23,0.61], [0.78,0.61] ]],
+  '5':[[ [0.73,0.18], [0.32,0.18], [0.28,0.48], [0.55,0.45], [0.72,0.52], [0.76,0.67], [0.67,0.80], [0.43,0.83], [0.25,0.75] ]],
+  '6':[[ [0.69,0.22], [0.51,0.17], [0.34,0.27], [0.24,0.48], [0.23,0.67], [0.36,0.80], [0.57,0.82], [0.73,0.71], [0.73,0.58], [0.59,0.49], [0.25,0.53] ]],
+  '7':[[ [0.23,0.18], [0.78,0.18], [0.42,0.82] ]],
+  '8':[[ [0.50,0.50], [0.32,0.45], [0.27,0.31], [0.36,0.19], [0.50,0.17], [0.65,0.20], [0.72,0.32], [0.66,0.44], [0.50,0.50], [0.32,0.56], [0.27,0.69], [0.36,0.81], [0.50,0.83], [0.65,0.80], [0.73,0.68], [0.66,0.56], [0.50,0.50] ]],
+  '9':[[ [0.73,0.48], [0.62,0.50], [0.43,0.49], [0.28,0.39], [0.29,0.25], [0.43,0.18], [0.62,0.20], [0.75,0.33], [0.76,0.54], [0.66,0.74], [0.48,0.82], [0.30,0.78] ]]
+ }).map(([v,paths])=>({label:v,name:'Number '+v,type:'path',paths})),
+ lines:[
+  {label:'Standing line',name:'Standing line',type:'path',paths:[[[.5,.2],[.5,.8]]]},
+  {label:'Sleeping line',name:'Sleeping line',type:'path',paths:[[[.2,.5],[.8,.5]]]},
+  {label:'Slanting line',name:'Slanting line',type:'path',paths:[[[.25,.78],[.75,.22]]]},
+  {label:'Other slanting line',name:'Other slanting line',type:'path',paths:[[[.25,.22],[.75,.78]]]},
+  {label:'Standing + sleeping',name:'Standing and sleeping lines',type:'path',paths:[[[.3,.2],[.3,.8]],[[.3,.5],[.72,.5]]]},
+  {label:'Zigzag',name:'Zigzag line',type:'path',paths:[[[.2,.3],[.8,.3],[.2,.7],[.8,.7]]]},
+  {label:'Curve',name:'Curved line',type:'curve',draw:(c,w,h)=>{c.moveTo(w*.22,h*.65);c.bezierCurveTo(w*.18,h*.15,w*.82,h*.15,w*.78,h*.65)}},
+  {label:'Wave',name:'Wavy line',type:'wave'}
+ ],
+ shapes:[
+  {label:'Circle',name:'Circle',type:'circle'},
+  {label:'Square',name:'Square',type:'path',paths:[[[.3,.25],[.7,.25],[.7,.75],[.3,.75],[.3,.25]]]},
+  {label:'Triangle',name:'Triangle',type:'path',paths:[[[.5,.2],[.78,.75],[.22,.75],[.5,.2]]]},
+  {label:'Rectangle',name:'Rectangle',type:'path',paths:[[[.22,.32],[.78,.32],[.78,.68],[.22,.68],[.22,.32]]]},
+  {label:'Star',name:'Star',type:'star'},
+  {label:'Heart',name:'Heart',type:'heart'},
+  {label:'Oval',name:'Oval',type:'oval'},
+  {label:'Diamond',name:'Diamond',type:'path',paths:[[[.5,.18],[.78,.5],[.5,.82],[.22,.5],[.5,.18]]]}
+ ]
+};
+(function(){const d=sets.numbers.slice(0,10),sc=(it,o)=>it.paths.map(p=>p.map(([x,y])=>[+(x*.5+o).toFixed(3),y]));
+ for(let n=10;n<=20;n++){const t=String(n);sets.numbers.push({label:t,name:'Number '+t,type:'path',paths:[...sc(d[+t[0]],0),...sc(d[+t[1]],.5)]})}})();
+
+// ---- extra pre-writing patterns and shapes ----
+function P(item,w,h){return item.build?item.build(w,h):item.paths}
+const lin=(a,b,n)=>Array.from({length:n+1},(_,i)=>a+(b-a)*i/n);
+const rp=(arr)=>arr.map(p=>p.map(pt=>pt.map(v=>+v.toFixed(3))));
+const rows=[];
+const addRow=(label,paths)=>rows.push({label,name:label,type:'path',paths:rp(paths)});
+addRow('Long straight line',[[[.06,.5],[.94,.5]]]);
+addRow('Big zigzag',[lin(0,12,12).map(i=>[.08+i*.07,i%2?.28:.72])]);
+addRow('Small zigzag',[lin(0,24,24).map(i=>[.06+i*.0367,i%2?.35:.65])]);
+addRow('Smooth wave',[lin(0,1,120).map(t=>[.06+.88*t,.5-.2*Math.sin(2*Math.PI*3*t)])]);
+addRow('Big wave',[lin(0,1,120).map(t=>[.06+.88*t,.5-.3*Math.sin(2*Math.PI*1.5*t)])]);
+addRow('Tiny ripples',[lin(0,1,240).map(t=>[.06+.88*t,.5-.12*Math.sin(2*Math.PI*8*t)])]);
+addRow('Square steps',[[[.06,.65],...Array.from({length:6},(_,k)=>{const x=.08+k*.14;return[[x,.65],[x,.35],[x+.07,.35],[x+.07,.65],[x+.14,.65]]}).flat()]]);
+addRow('Hills (scallops)',[Array.from({length:7},(_,k)=>arc(.1+.13*k,.68,.065,.3,180,360,10)).flat()]);
+addRow('Valleys (U shapes)',[Array.from({length:7},(_,k)=>arc(.1+.13*k,.32,.065,.3,180,0,10)).flat()]);
+addRow('Saw teeth',[[[.06,.7],...Array.from({length:8},(_,k)=>{const x=.06+k*.11;return[[x,.7],[x+.11,.3],[x+.11,.7]]}).flat()]]);
+addRow('Loops (springs)',[lin(0,2*Math.PI*8,480).map(a=>[.08+.84*a/(2*Math.PI*8)-.04*Math.sin(a),.5-.2*Math.cos(a)])]);
+addRow('Loop the loop',[lin(0,2*Math.PI*7,420).map(a=>[.08+.84*a/(2*Math.PI*7)+.035*Math.cos(a)-.035,.5+.2*Math.sin(a)])]);
+addRow('Up-down zigzag',[lin(0,12,12).map(i=>[i%2?.3:.7,.08+i*.07])]);
+addRow('Up-down wave',[lin(0,1,120).map(t=>[.5-.2*Math.sin(2*Math.PI*3*t),.08+.84*t])]);
+addRow('Many standing lines',[lin(0,8,8).map(k=>[[.1+.1*k,.25],[.1+.1*k,.75]])].flat());
+addRow('Dashes',lin(0,4,4).map(k=>[[.08+.18*k,.5],[.2+.18*k,.5]]));
+addRow('Back slants',lin(0,7,7).map(k=>[[.08+.11*k,.25],[.16+.11*k,.75]]));
+addRow('Forward slants',lin(0,7,7).map(k=>[[.16+.11*k,.25],[.08+.11*k,.75]]));
+addRow('Arrow chevrons',lin(0,7,7).map(k=>[[.08+.11*k,.25],[.15+.11*k,.5],[.08+.11*k,.75]]));
+addRow('C curves',lin(0,4,4).map(k=>arc(.2+.16*k,.5,.07,.25,-90,-270,12)));
+sets.lines.push(...rows);
+const mk=(label,gen)=>({label,name:label,type:'path',build:(w,h)=>{const u=Math.min(w,h);return gen().map(p=>p.map(([x,y])=>[.5+x*u/w,.5+y*u/h]))}});
+const poly=(n,r,rot)=>{const p=lin(0,n,n).map(i=>{const a=(rot+360*i/n)*Math.PI/180;return[r*Math.cos(a),r*Math.sin(a)]});return p};
+const pl=(...p)=>p;
+const cloud=[...arc(-.3,.06,.14,.14,90,270,8),...arc(-.12,-.1,.18,.18,180,330,10),...arc(.14,-.05,.17,.17,250,340,8),...arc(.3,.06,.14,.14,270,450,8),[-.3,.2]];
+const lens=(a,b,t)=>{const up=lin(0,1,16).map(i=>[a+(b-a)*i,-.2*Math.pow(Math.sin(Math.PI*i),.8)]);return up};
+const fishUp=lin(0,1,16).map(i=>[-.32+.52*i,-.2*Math.pow(Math.sin(Math.PI*i),.8)]);
+const fishLow=fishUp.map(([x,y])=>[x,-y]).reverse();
+const leafR=lin(0,1,16).map(i=>[.2*Math.sin(Math.PI*i),.36-.72*i]);
+const leafL=leafR.map(([x,y])=>[-x,y]).reverse();
+const sp=lin(0,1,120).map(i=>{const a=i*4*Math.PI,r=.36*(1-i)+.02;return[r*Math.cos(a),r*Math.sin(a)]});
+const bw=m=>[[0,-.05],[-.15*m,-.3],[-.34*m,-.28],[-.34*m,-.05],[0,-.05]];
+const bl=m=>[[0,.02],[-.3*m,.08],[-.28*m,.3],[-.12*m,.28],[0,.02]];
+sets.shapes.push(
+ mk('Pentagon',()=>[poly(5,.36,-90)]),
+ mk('Hexagon',()=>[poly(6,.36,0)]),
+ mk('Octagon',()=>[poly(8,.36,-22.5)]),
+ mk('Trapezoid',()=>[[[-.2,-.22],[.2,-.22],[.36,.22],[-.36,.22],[-.2,-.22]]]),
+ mk('Parallelogram',()=>[[[-.2,-.22],[.36,-.22],[.2,.22],[-.36,.22],[-.2,-.22]]]),
+ mk('Kite',()=>[[[0,-.36],[.24,-.05],[0,.36],[-.24,-.05],[0,-.36]]]),
+ mk('Semicircle',()=>[[...arc(0,.15,.36,.36,180,360,24),[-.36,.15]]]),
+ mk('Crescent moon',()=>[[...arc(0,0,.36,.36,-60,-300,28),...arc(.15,0,.311,.311,84,276,20)]]),
+ mk('Plus',()=>[[[-.1,-.36],[.1,-.36],[.1,-.1],[.36,-.1],[.36,.1],[.1,.1],[.1,.36],[-.1,.36],[-.1,.1],[-.36,.1],[-.36,-.1],[-.1,-.1],[-.1,-.36]]]),
+ mk('Arrow',()=>[[[-.36,-.1],[.05,-.1],[.05,-.26],[.36,0],[.05,.26],[.05,.1],[-.36,.1],[-.36,-.1]]]),
+ mk('House',()=>[[[-.28,.34],[-.28,-.05],[0,-.34],[.28,-.05],[.28,.34],[-.28,.34]],[[-.06,.34],[-.06,.14],[.08,.14],[.08,.34]]]),
+ mk('Lightning bolt',()=>[[[.05,-.36],[-.2,.05],[-.02,.05],[-.08,.36],[.2,-.07],[.02,-.07],[.05,-.36]]]),
+ mk('Sun',()=>[arc(0,0,.16,.16,-90,270,24),...lin(0,7,7).map(k=>{const a=k*Math.PI/4;return[[.24*Math.cos(a),.24*Math.sin(a)],[.36*Math.cos(a),.36*Math.sin(a)]]})]),
+ mk('Flower',()=>[lin(0,1,120).map(i=>{const a=i*2*Math.PI,r=.22+.14*Math.cos(5*a);return[r*Math.cos(a),r*Math.sin(a)]})]),
+ mk('Cloud',()=>[cloud]),
+ mk('Spiral',()=>[sp]),
+ mk('Fish',()=>[[...fishUp,[.36,-.16],[.36,.16],[.2,0],...fishLow]]),
+ mk('Tree',()=>[arc(0,-.1,.26,.26,-90,270,28),[[-.06,.16],[-.06,.34],[.06,.34],[.06,.16]]]),
+ mk('Leaf',()=>[[...leafR,...leafL],[[0,.36],[0,-.2]]]),
+ mk('Ice cream',()=>[[[-.15,-.02],[.15,-.02],[0,.36],[-.15,-.02]],arc(0,-.12,.17,.17,180,360,12)]),
+ mk('Butterfly',()=>[[[0,-.2],[0,.2]],bw(1),bw(-1),bl(1),bl(-1)])
+);
+
+
+// ---- Hindi letters (drawn from a Devanagari font as dashed outlines) ----
+const HFONT='"Noto Sans Devanagari","Kohinoor Devanagari","Devanagari Sangam MN","Mangal","Nirmala UI",Arial,sans-serif';
+sets.hindi=('अ A,आ AA,इ E,ई I,उ U,ऊ OO,ऋ RI,ए E,ऐ AI,ओ O,औ AU,अं AM,अः AH,क KA,ख KHA,ग GA,घ GHA,ङ NGA,च CHA,छ CHHA,ज JA,झ JHA,ञ NYA,ट TA,ठ THA,ड DA,ढ DHA,ण NA,त TA,थ THA,द DA,ध DHA,न NA,प PA,फ PHA,ब BA,भ BHA,म MA,य YA,र RA,ल LA,व VA,श SHA,ष SHHA,स SA,ह HA,क्ष KSHA,त्र TRA,ज्ञ GYA').split(',').map(x=>{const [ch,r]=x.split(' ');return{label:ch,name:'Hindi '+ch+' ('+r+')',type:'text',value:ch}});
+function textFit(v,w,h,maxW,maxH){
+ ctx.font='700 100px '+HFONT;ctx.textAlign='center';ctx.textBaseline='alphabetic';
+ const m=ctx.measureText(v),asc=m.actualBoundingBoxAscent||80,desc=m.actualBoundingBoxDescent||20,tw=(m.actualBoundingBoxLeft||0)+(m.actualBoundingBoxRight||m.width);
+ const size=100*Math.min(maxW/tw,maxH/(asc+desc));
+ const f=size/100;return{size,y:h/2+(asc-desc)*f/2,off:((m.actualBoundingBoxLeft||0)-(m.actualBoundingBoxRight||m.width))*f/2+0};
+}
+function drawText(item,w,h){
+ ctx.save();
+ const t=textFit(item.value,w,h,w*.8,h*.72),x=w/2+t.off*0;
+ ctx.font='700 '+t.size+'px '+HFONT;ctx.textAlign='center';ctx.textBaseline='alphabetic';
+ ctx.fillStyle='#d6edf3';ctx.fillText(item.value,x,t.y);
+ ctx.setLineDash([2,Math.max(8,t.size*.06)]);ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#087f8c';ctx.lineWidth=4;ctx.strokeText(item.value,x,t.y);ctx.setLineDash([]);
+ strokes.forEach(s=>{if(s.length<2)return;ctx.beginPath();ctx.moveTo(s[0].x,s[0].y);s.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));ctx.strokeStyle='#ff9b35';ctx.lineWidth=12;ctx.stroke()});
+ ctx.restore();
+ ctx.fillStyle='#9bb7c3';ctx.font='bold 13px Arial';ctx.textAlign='center';ctx.fillText('TRACE THE DOTTED LETTER',w/2,h-16);
+}
+function cellText(v,ox,oy,cell,r){
+ if(r>=3)return;
+ ctx.save();const t=textFit(v,cell,cell,cell*.8,cell*.76),x=ox+cell/2,y=oy+t.y;
+ ctx.font='700 '+t.size+'px '+HFONT;ctx.textAlign='center';ctx.textBaseline='alphabetic';
+ if(r===0){ctx.fillStyle='#193b5b';ctx.fillText(v,x,y)}
+ else{ctx.fillStyle='#e3f2f7';ctx.fillText(v,x,y);ctx.setLineDash([3,4]);ctx.strokeStyle='#087f8c';ctx.lineWidth=1.5;ctx.strokeText(v,x,y)}
+ ctx.restore();
+}
+// ---- Advanced writing sheets: 1 sample row, 4 trace rows, 4 practice rows (dots only) ----
+sets.advanced=[...sets.letters,...sets.small,...sets.cursive,...sets.cursiveCap,...sets.numbers.slice(0,10),...sets.hindi].map(it=>({label:it.label,name:'Write '+it.name.replace(/^Letter /,'')+' (sample, trace, practice)',type:'sheet',sheet:true,base:it}));
+const SHEET_ROWS=5,SHEET_COLS=5;
+function sheetCell(w){return Math.min(w/SHEET_COLS,90)}
+function drawSheet(item,w,h){
+ const cell=sheetCell(w),x0=(w-SHEET_COLS*cell)/2,isT=item.base.type==='text',paths=isT?[]:P(item.base,cell,cell);
+ const dot=(x,y,r,c)=>{ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=c;ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.stroke()};
+ ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
+ for(let r=0;r<SHEET_ROWS;r++){
+  if(r===0){ctx.fillStyle='#fff3c4';ctx.fillRect(x0,0,SHEET_COLS*cell,cell)}
+  else if(r===3){ctx.fillStyle='#f1fbf1';ctx.fillRect(x0,r*cell,SHEET_COLS*cell,2*cell)}
+  for(let c=0;c<SHEET_COLS;c++){
+   const ox=x0+c*cell,oy=r*cell;
+   ctx.setLineDash([]);ctx.strokeStyle='#4f6b7a';ctx.lineWidth=1.2;ctx.strokeRect(ox,oy,cell,cell);
+   if(isT){cellText(item.base.value,ox,oy,cell,r);continue}
+   const pt=q=>[ox+q[0]*cell,oy+q[1]*cell];
+   if(r===0){
+    ctx.beginPath();paths.forEach(p=>{const a=pt(p[0]);ctx.moveTo(a[0],a[1]);p.slice(1).forEach(q=>{const b=pt(q);ctx.lineTo(b[0],b[1])})});
+    ctx.strokeStyle='#193b5b';ctx.lineWidth=Math.max(3,cell*.07);ctx.stroke();
+   }else if(r<=2){
+    ctx.beginPath();paths.forEach(p=>{const a=pt(p[0]);ctx.moveTo(a[0],a[1]);p.slice(1).forEach(q=>{const b=pt(q);ctx.lineTo(b[0],b[1])})});
+    ctx.setLineDash([4,5]);ctx.strokeStyle='#087f8c';ctx.lineWidth=1.8;ctx.stroke();ctx.setLineDash([]);
+    paths.forEach(p=>{const a=pt(p[0]),b=pt(p[p.length-1]);dot(a[0],a[1],Math.max(3,cell*.055),'#55c957');dot(b[0],b[1],Math.max(3,cell*.055),'#ff766f')});
+   }else{
+    paths.forEach(p=>{const a=pt(p[0]),b=pt(p[p.length-1]);dot(a[0],a[1],Math.max(3,cell*.05),'#55c957');dot(b[0],b[1],Math.max(3,cell*.05),'#ff766f')});
+   }
+  }
+ }
+ ctx.fillStyle='#9a7b00';ctx.font='bold 11px Arial';ctx.textAlign='left';ctx.fillText('SAMPLE',x0+4,12);
+ // child's writing
+ strokes.forEach(s=>{if(s.length<2)return;ctx.beginPath();ctx.moveTo(s[0].x,s[0].y);s.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));ctx.strokeStyle='#ff9b35';ctx.lineWidth=Math.max(4,cell*.09);ctx.stroke()});
+ ctx.restore();
+}
+function fit(){
+ const adv=kind==='advanced';
+ if(adv){const cell=sheetCell(canvas.parentElement.clientWidth);canvas.style.height=(SHEET_ROWS*cell)+'px';canvas.style.minHeight='0'}
+ else{canvas.style.height='';canvas.style.minHeight=''}
+ resize();
+}
+
+function wordGeo(w,h,div,hf,xmax){const lw=Math.min(w/div,h*hf);let xs=lw>=h*hf?1:Math.min(xmax,h*hf/lw);const k=Math.min(1,xs*lw/(h*hf));return{lw,xs,k}}
+// ---- 3-letter words (built by joining the small-letter paths) ----
+sets.words='ban pat dig tag cat ham bad cap big jab wig hat ram nag lad pig ran lab bat cab gap fan bag fat can jam man had lap sun nap bun mat wag mad van dad map sat pad fig sad tan dam tap pan rat tab rag yam'.split(' ').map(wd=>({label:wd,name:'Word: '+wd,type:'path',guide:true,kf:(w,h)=>wordGeo(w,h,3.2,.85,1.7).k,build:(w,h)=>{
+ const {lw,xs,k}=wordGeo(w,h,3.2,.85,1.7),ys=y=>+(.5+(y-.5)*k).toFixed(4);
+ return wd.split('').flatMap((ch,i)=>smallLetters[ch].map(p=>p.map(([x,y])=>[+(.5+((i-1)*lw+(x-.5)*lw*xs)/w).toFixed(4),ys(y)])))
+}}));
+
+// ---- 3-letter cursive words (letters joined into connected strokes) ----
+sets.cursiveWords=sets.words.map(o=>o.label).map(wd=>({label:wd,name:'Cursive word: '+wd,type:'path',guide:true,kf:(w,h)=>wordGeo(w,h,3.0,.9,1.4).k,build:(w,h)=>{
+ const {lw,xs,k}=wordGeo(w,h,3.0,.9,1.4),out=[];let carry=null;
+ wd.split('').forEach((ch,i)=>{
+  const ps=slant(cursiveLetters[ch]).map(p=>p.map(([x,y])=>[+(.5+((i-1)*lw+(x-.5)*lw*xs)/w).toFixed(4),+(.5+(y-.5)*k).toFixed(4)]));
+  const main=ps[0].slice();
+  if(carry){carry.push(...main)}else{out.push(main);carry=main}
+  ps.slice(1).forEach(p=>out.push(p));
+  if('pqx'.includes(ch))carry=null;
+ });
+ return out;
+}}));
+let kind='letters',index=0,strokes=[],active=false,last=null,done=false,scale={w:0,h:0};
+function current(){return sets[kind][index]}
+function resize(){
+ const r=canvas.getBoundingClientRect(),dpr=Math.max(1,window.devicePixelRatio||1);
+ canvas.width=Math.round(r.width*dpr);canvas.height=Math.round(r.height*dpr);
+ ctx.setTransform(dpr,0,0,dpr,0,0);scale={w:r.width,h:r.height};draw();
+}
+function pathFor(item,c,w,h){
+ c.beginPath();
+ if(item.type==='text'){c.font=`900 ${Math.min(w*.61,h*.78)}px "Trebuchet MS",Arial`;c.textAlign='center';c.textBaseline='middle';c.fillText(item.value,w/2,h/2+8);return}
+ if(item.type==='path'){P(item,w,h).forEach(p=>{c.moveTo(p[0][0]*w,p[0][1]*h);p.slice(1).forEach(q=>c.lineTo(q[0]*w,q[1]*h))});return}
+ if(item.type==='circle'){c.arc(w/2,h/2,Math.min(w,h)*.27,0,Math.PI*2);return}
+ if(item.type==='oval'){c.ellipse(w/2,h/2,w*.28,h*.22,0,0,Math.PI*2);return}
+ if(item.type==='curve'){item.draw(c,w,h);return}
+ if(item.type==='wave'){c.moveTo(w*.16,h*.5);for(let x=.16;x<.84;x+=.01)c.lineTo(w*x,h*(.5+Math.sin((x-.16)*Math.PI*4)*.13));return}
+ if(item.type==='star'){for(let i=0;i<10;i++){let a=-Math.PI/2+i*Math.PI/5,r=i%2===0?.29:.13,x=w/2+Math.cos(a)*w*r,y=h/2+Math.sin(a)*h*r;i?c.lineTo(x,y):c.moveTo(x,y)}c.closePath();return}
+ if(item.type==='heart'){c.moveTo(w*.5,h*.76);c.bezierCurveTo(w*.05,h*.45,w*.2,h*.18,w*.38,h*.31);c.bezierCurveTo(w*.46,h*.36,w*.5,h*.43,w*.5,h*.43);c.bezierCurveTo(w*.65,h*.18,w*.94,h*.27,w*.84,h*.52);c.bezierCurveTo(w*.79,h*.64,w*.62,h*.73,w*.5,h*.76);return}
+}
+function drawGuideLines(w,h,k=1){
+ // writing lines: top, x-height (dashed), baseline
+ ctx.save();ctx.lineWidth=2;
+ [[.15,'#cfe6ee',[]],[.40,'#cfe6ee',[6,6]],[.80,'#f2a6a6',[]]].forEach(([y,col,d])=>{ctx.beginPath();ctx.setLineDash(d);ctx.strokeStyle=col;const yy=h*(.5+(y-.5)*k);ctx.moveTo(w*.05,yy);ctx.lineTo(w*.95,yy);ctx.stroke()});
+ ctx.restore();
+}
+function draw(){
+ const w=scale.w,h=scale.h;if(!w)return;ctx.clearRect(0,0,w,h);
+ // soft guide background
+ ctx.fillStyle='#fbfeff';ctx.fillRect(0,0,w,h);
+ const item=current(),dr=Math.max(6,Math.min(13,Math.min(w,h)*.035))*(item.kf?Math.max(.7,item.kf(w,h)):1);
+ if(item.sheet){drawSheet(item,w,h);return}
+ if(item.type==='text'){drawText(item,w,h);return}
+ if(item.guide)drawGuideLines(w,h,item.kf?item.kf(w,h):1);
+ ctx.save();pathFor(item,ctx,w,h);
+ ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#b7dce8';ctx.lineWidth=Math.max(16,Math.min(w,h)*.095*(item.kf?Math.max(.55,item.kf(w,h)):1));ctx.stroke();
+ ctx.setLineDash([2,Math.max(8,Math.min(w,h)*.025)]);ctx.strokeStyle='#087f8c';ctx.lineWidth=5;ctx.stroke();ctx.setLineDash([]);
+ // Large green START and coral END dots on every guided stroke
+ if(item.type==='path'){
+   P(item,w,h).forEach(p=>{
+     const a=p[0],b=p[p.length-1];
+     [[a,'#55c957'],[b,'#ff766f']].forEach(([pt,color])=>{
+       ctx.beginPath();ctx.arc(pt[0]*w,pt[1]*h,dr,0,Math.PI*2);
+       ctx.fillStyle=color;ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.stroke();
+     });
+   });
+ } else {
+   let start=getStart(item,w,h);ctx.beginPath();ctx.arc(start.x,start.y,dr,0,Math.PI*2);ctx.fillStyle='#55c957';ctx.fill();ctx.strokeStyle='white';ctx.lineWidth=3;ctx.stroke();
+ }
+ // child's trace
+ strokes.forEach(s=>{if(s.length<2)return;ctx.beginPath();ctx.moveTo(s[0].x,s[0].y);s.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));ctx.strokeStyle='#ff9b35';ctx.lineWidth=12;ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke()});
+ ctx.restore();
+ // little prompt
+ ctx.fillStyle='#9bb7c3';ctx.font='bold 13px Arial';ctx.textAlign='center';ctx.fillText('FOLLOW THE DOTS',w/2,h-16);
+}
+function getStart(item,w,h){if(item.type==='text')return{x:w*.5,y:h*.18};if(item.type==='circle'||item.type==='oval')return{x:w*.5,y:h*.23};if(item.type==='star')return{x:w*.5,y:h*.21};if(item.type==='heart')return{x:w*.5,y:h*.76};if(item.type==='path')return{x:P(item,w,h)[0][0][0]*w,y:P(item,w,h)[0][0][1]*h};if(item.type==='curve'||item.type==='wave')return{x:w*.2,y:h*.65};return{x:w*.5,y:h*.2}}
+const kindLabel={letters:'Letter',small:'Small',cursive:'Cursive',cursiveCap:'Cursive Capital',advanced:'Writing',hindi:'Hindi',words:'Word',cursiveWords:'Cursive word',numbers:'Number',lines:'Practice',shapes:'Shape'};
+function update(){fit();const item=current();progress.textContent=kindLabel[kind]+' '+(index+1)+' of '+sets[kind].length+' • '+item.name;if(item.type==='text'){instruction.textContent='Trace along the dotted outline';message.textContent='Trace the Hindi letter slowly, from the top left ✏️'}else if(item.sheet){instruction.textContent='Yellow row = sample • 2 rows trace • 2 rows write alone';message.textContent='Trace the dotted rows, then write by yourself in the green rows ✏️'}else{instruction.textContent='Green dot = START  •  Red dot = END';message.textContent='Start at the BIG GREEN dot 🟢 and trace towards the RED dot 🔴'}done=false;strokes=[];draw()}
+function moveToKind(k){kind=k;index=0;document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.kind===k));update()}
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>moveToKind(b.dataset.kind)));
+document.getElementById('next').onclick=()=>{index=(index+1)%sets[kind].length;update()};
+document.getElementById('back').onclick=()=>{index=(index-1+sets[kind].length)%sets[kind].length;update()};
+document.getElementById('reset').onclick=()=>{strokes=[];done=false;message.textContent='Try again! Start at the green dot 🌟';draw()};
+function pos(e){const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
+canvas.addEventListener('pointerdown',e=>{e.preventDefault();active=true;canvas.setPointerCapture(e.pointerId);strokes.push([pos(e)]);message.textContent='Great! Keep tracing…';draw()});
+canvas.addEventListener('pointermove',e=>{if(!active)return;e.preventDefault();const p=pos(e),s=strokes[strokes.length-1];s.push(p);draw();if(s.length>20&&!done){done=true;message.textContent='⭐ Super tracing! You did it! Tap Next to continue.'}});
+function stop(){active=false}canvas.addEventListener('pointerup',stop);canvas.addEventListener('pointercancel',stop);canvas.addEventListener('lostpointercapture',stop);
+window.addEventListener('resize',fit);resize();update();
+</script>
+</body>
+</html>
